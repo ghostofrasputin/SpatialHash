@@ -61,9 +61,12 @@ function build_hash(circles)
         local cellList = circle_to_cells(circle)
         for cell in all(cellList) do
             local index = hash_index(cell[1],cell[2])
-            local bucket = hash[index] or {}
-            add(bucket,circle)
-            hash[index] = bucket
+            if hash[index] ~= nil then
+                add(hash[index], circle)
+            else
+                hash[index] = {}
+                add(hash[index], circle)
+            end
         end
     end
     return hash
@@ -73,10 +76,14 @@ end
 -- sweep_naive(bucket) for collisions; 
 -- combine results across buckets
 function sweep_hash(hash)
-	for bucket in all(hash) do
-        sweep_naive(bucket)
+	local result = {}
+    for index,bucket in pairs(hash) do
+        local bucketCollisions = sweep_naive(bucket)
+        for collision in all(bucketCollisions) do
+            add(result,collision)
+        end
     end
-	return {}
+	return result
 end
 
 -- for every cell which the q circle 
@@ -85,11 +92,22 @@ end
 -- for any overlaps; combine results across
 -- buckets
 function query_hash(hash, query)
-	--todo: imeplement this
-	return {}
+	local result = {}
+    local qCellList = circle_to_cells(query)
+    for cell in all(qCellList) do
+        local index = hash_index(cell[1],cell[2])
+        local bucket = hash[index]
+        local qItems = query_naive(bucket, query)
+        for q in all(qItems) do
+            add(result,q)
+        end   
+    end
+	return result
 end
 
--- hash mode:
+-- hash mode: takes a table of buckets mapped to
+-- (i, j) pairs of the grid. Then
+--
 -- non-hash mode: returns all the collision pairs
 function sweep(circles)
 	if hash_mode then
@@ -115,14 +133,10 @@ end
 -- the given circle c. 
 function circle_to_cells(c)
     local pairTable = {}
-    -- top left
-    calculate_pair(pairTable,c.x,c.y,-c.r,-c.r)
-    -- top right
-    calculate_pair(pairTable,c.x,c.y,c.r,-c.r)
-    -- bot left
-    calculate_pair(pairTable,c.x,c.y,-c.r,c.r)
-    -- bot right
-    calculate_pair(pairTable,c.x,c.y,c.r,c.r)
+    calculate_pair(pairTable,c.x,c.y,-c.r,-c.r) -- top left
+    calculate_pair(pairTable,c.x,c.y,c.r,-c.r)  -- top right
+    calculate_pair(pairTable,c.x,c.y,-c.r,c.r)  -- bot left
+    calculate_pair(pairTable,c.x,c.y,c.r,c.r)   -- bot right
     --iter = 42
     local pairList = {}
     for key,value in pairs(pairTable) do
@@ -196,7 +210,7 @@ function _init()
     grid_size = 128/cell_size
     selected = nil
     hearts = {}
-    heartNum = 64
+    heartNum = 50
     grid = generateGrid()
     for i = 1,heartNum do
 		add(hearts,{x=rnd(128), y=rnd(128), r=2+rnd(8)*rnd(1)})
