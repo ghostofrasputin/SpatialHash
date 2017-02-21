@@ -1,6 +1,8 @@
 pico-8 cartridge // http://www.pico-8.com
 version 8
 __lua__
+-- Spatial Hashing
+-- Jacob Preston 1355102
 
 function on_hearts_collide(a,b)
 	if rnd(1) < 0.5 then
@@ -10,6 +12,8 @@ function on_hearts_collide(a,b)
 	end
 end
 
+-- checks for circle collisions
+-- returns list of colliding circle tables
 function query_naive(circles, q)
 	local results = {}
 	for c in all(circles) do
@@ -24,13 +28,15 @@ function query_naive(circles, q)
 	return results
 end
 
+-- returns a collision pair of 
+-- 2 circle data tables
 function sweep_naive(circles)
 	local collisions = {}
 	
 	for q in all(circles) do
 		local results = query_naive(circles, q)
 		for r in all(results) do
-			if r != q then
+            if r != q then
 				add(collisions, {r,q})
 			end
 		end
@@ -39,24 +45,52 @@ function sweep_naive(circles)
 	return collisions
 end
 
-hash_mode = false
-
-function build_hash(circles)
-	--todo: implement this
-	return nil
+-- maps pairs of integers into
+-- a single integer
+function hash_index(i,j)
+    return 127*j+i
 end
 
+-- for each circle, for each cell it 
+-- falls into, compute the hash_index of
+-- the bucket for that cell and add a 
+-- reference to that circle in that bucket
+function build_hash(circles)
+	local hash = {}
+    for circle in all(circles) do
+        local cellList = circle_to_cells(circle)
+        for cell in all(cellList) do
+            local index = hash_index(cell[1],cell[2])
+            local bucket = hash[index] or {}
+            add(bucket,circle)
+            hash[index] = bucket
+        end
+    end
+    return hash
+end
+
+-- for every bucket, ask
+-- sweep_naive(bucket) for collisions; 
+-- combine results across buckets
 function sweep_hash(hash)
-	--todo: implement this
+	for bucket in all(hash) do
+        sweep_naive(bucket)
+    end
 	return {}
 end
 
+-- for every cell which the q circle 
+-- falls into, get the associated bucket
+-- from the hash and ask query_naive(bucket, q)
+-- for any overlaps; combine results across
+-- buckets
 function query_hash(hash, query)
 	--todo: imeplement this
 	return {}
 end
 
-
+-- hash mode:
+-- non-hash mode: returns all the collision pairs
 function sweep(circles)
 	if hash_mode then
 		last_hash = build_hash(circles)
@@ -66,6 +100,8 @@ function sweep(circles)
 	end
 end
 
+-- hash mode:
+-- non-hash mode: 
 function query(q)
 	if hash_mode then
 		return query_hash(last_hash,q)
@@ -74,47 +110,122 @@ function query(q)
 	end
 end
 
-
-function _init()
-
-	poke(0x5f2d, 1) -- enable mouse
-
-	hearts = {}
-
-	for i = 1,64 do
-		add(hearts,{
-			x=rnd(128),
-			y=rnd(128),
-			r=2+rnd(8)*rnd(1),
-		})
-	end
-	
+-- returns a list of (i,j) pairs
+-- representing cells touched by 
+-- the given circle c. 
+function circle_to_cells(c)
+    local pairTable = {}
+    -- top left
+    calculate_pair(pairTable,c.x,c.y,-c.r,-c.r)
+    -- top right
+    calculate_pair(pairTable,c.x,c.y,c.r,-c.r)
+    -- bot left
+    calculate_pair(pairTable,c.x,c.y,-c.r,c.r)
+    -- bot right
+    calculate_pair(pairTable,c.x,c.y,c.r,c.r)
+    --iter = 42
+    local pairList = {}
+    for key,value in pairs(pairTable) do
+        add(pairList,value)
+        --print("pair: "..value[1] .." "..value[2], 1,iter,7)
+        --iter+=7
+    end
+    return pairList
 end
 
-last_ms = 0
-selected = nil
+-- calculates a pair for a point and this
+-- tables method makes it so no duplicates
+-- are added
+function calculate_pair(pairTable,x,y,rx,ry)
+    local px = x + rx
+    local py = y + ry
+    local pair = pixel_to_cell(px,py)
+    if pair ~= nil then
+        pairTable[pair[1]..pair[2]] = pair
+    end
+end
+
+-- returns a pair of integers (i,j) 
+-- representing which cell pixel 
+-- (x,y) falls into
+function pixel_to_cell(x,y)
+    for i=1,grid_size do
+        for j=1,grid_size do
+            local x_min = grid[i][j][1]
+            local y_min = grid[i][j][2]
+            local x_max = grid[i][j][3]
+            local y_max = grid[i][j][4]
+            if x>x_min and x<x_max and y>y_min and y<y_max then
+               --print("i: " ..i,1,21,7)
+               --print("j: " ..j, 1,28,7)
+               return {i,j}
+            end
+        end
+    end
+end
+
+-- create a list of grid tiles
+-- based on the cell size 
+-- retuns list of min and max intervals
+function generateGrid()
+    local grid = {}
+    local x_min,y_min = 0,0
+    local x_max,y_max = cell_size,cell_size
+    
+    for i=1,grid_size do
+        grid[i] = {}
+        for j=1,grid_size do
+            grid[i][j] = {x_min,y_min,x_max,y_max}
+            y_min += cell_size
+            y_max += cell_size
+        end
+        y_min = 0
+        y_max = cell_size
+        x_min += cell_size
+        x_max += cell_size
+    end
+    
+    return grid
+end
+
+function _init()
+	poke(0x5f2d, 1) -- enable mouse
+    last_ms = 0
+    hash_mode = false
+    cell_size = 16
+    grid_size = 128/cell_size
+    selected = nil
+    hearts = {}
+    heartNum = 64
+    grid = generateGrid()
+    for i = 1,heartNum do
+		add(hearts,{x=rnd(128), y=rnd(128), r=2+rnd(8)*rnd(1)})
+	end
+end
 
 function _update60()
-
+    -- button 'left shift' or 'tab'
 	if btnp(4,1) then
 		hash_mode = not hash_mode
 	end
 	
+    -- CPU used since last flip 
+    -- (1.0 == 100% CPU at 30fps
 	local tick = stat(1)	
 	collisions = sweep(hearts)
 	local tock = stat(1)
 	sweep_time = tock-tick
 	
-	num_collisions = #collisions
-
+    -- moves hearts out of collision:
 	for pair in all(collisions) do
 		on_hearts_collide(pair[1],pair[2])
 	end
 	
-	local mx = stat(32)
-	local my = stat(33)
-	local ms = stat(34)
+	local mx = stat(32) --> mouseX
+	local my = stat(33) --> mouseY
+	local ms = stat(34) --> button bitmask (1=prime,2=second,4=mid)
 	
+    -- check for mouse-circle collision:
 	if ms > last_ms then
 		local results = query({x=mx,y=my,r=1})
 		if #results > 0 then
@@ -125,40 +236,46 @@ function _update60()
 	end
 	last_ms = ms
 	
+    -- move selected heart circle:
 	if selected then
-		local k = 0.0625
-		selected.x += k*(mx-selected.x)
-		selected.y += k*(my-selected.y)
+		local speed = 0.0625
+		selected.x += speed*(mx-selected.x)
+		selected.y += speed*(my-selected.y)
 	end
-
+    
+    -- keeps hearts on screen:
 	for h in all(hearts) do
 		h.x = mid(h.r, h.x, 128-h.r)
 		h.y = mid(h.r, h.y, 128-h.r)
-	end
-	
+	end	
 end
 
 function _draw()
-
 	cls(14)
-
+    -- draw hearts
 	for h in all(hearts) do
 		sspr(16,0,16,16,h.x-h.r,h.y-h.r,h.r*2,h.r*2)
 	end
-
+    
+    -- draw box around selected heart:
 	if selected then
 		local s = selected
 		rect(s.x-s.r,s.y-s.r,s.x+s.r-1,s.y+s.r-1,7)
 	end
-
+    
+    -- draw mouse cursor:
 	local mx,my = stat(32), stat(33)	
 	local ms = stat(34)==1 and 1 or 17
 	line(mx-4,my,mx+4,my,7)
 	line(mx,my-4,mx,my+4,7)
-	
-	print("%cpu: "..stat(1),1,1,7)
-	print("#col: "..num_collisions,1,7,7)
+    
+	-- print info to screen:
+    print("%cpu: "..stat(1),1,1,7)
+	print("#col: "..#collisions,1,7,7)
 	print("mode: "..(hash_mode and "hash" or "naive"),1,14,7)
+    -- debug:
+    --circle_to_cells(hearts[1])
+    --pixel_to_cell(mx,my)
 end
 
 __gfx__
