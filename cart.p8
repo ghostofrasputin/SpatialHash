@@ -1,48 +1,47 @@
 pico-8 cartridge // http://www.pico-8.com
 version 8
 __lua__
--- Spatial Hashing
--- Jacob Preston 1355102
+-- spatial hashing
+-- jacob preston 1355102
 
-function on_hearts_collide(a,b)
-	if rnd(1) < 0.5 then
-		a.x += sgn(a.x-b.x)
-	else
-		a.y += sgn(a.y-b.y)
-	end
+-- moves circles out of collision
+function on_circles_collide(a,b)
+    if rnd(1) < 0.5 then
+        a.x += sgn(a.x-b.x)
+    else
+        a.y += sgn(a.y-b.y)
+    end
 end
 
 -- checks for circle collisions
 -- returns list of colliding circle tables
 function query_naive(circles, q)
-	local results = {}
-	for c in all(circles) do
-		local dx = c.x-q.x
-		local dy = c.y-q.y
-		local k = c.r+q.r
-		local d2 = dx*dx+dy*dy
-		if d2 < k*k then
-			add(results, c)
-		end
-	end
-	return results
+    local results = {}
+    for c in all(circles) do
+        local dx = c.x-q.x
+        local dy = c.y-q.y
+        local k = c.r+q.r
+        local d2 = dx*dx+dy*dy
+        if d2 < k*k then
+            add(results, c)
+        end
+    end
+    return results
 end
 
 -- returns a collision pair of 
 -- 2 circle data tables
 function sweep_naive(circles)
-	local collisions = {}
-	
-	for q in all(circles) do
-		local results = query_naive(circles, q)
-		for r in all(results) do
+    local collisions = {}
+    for q in all(circles) do
+        local results = query_naive(circles, q)
+        for r in all(results) do
             if r != q then
-				add(collisions, {r,q})
-			end
-		end
-	end
-
-	return collisions
+                add(collisions, {r,q})
+            end
+        end
+    end
+    return collisions
 end
 
 -- maps pairs of integers into
@@ -56,10 +55,10 @@ end
 -- the bucket for that cell and add a 
 -- reference to that circle in that bucket
 function build_hash(circles)
-	local hash = {}
+    local hash = {}
     for circle in all(circles) do
-        local cellList = circle_to_cells(circle)
-        for cell in all(cellList) do
+        local celllist = circle_to_cells(circle)
+        for cell in all(celllist) do
             local index = hash_index(cell[1],cell[2])
             if hash[index] ~= nil then
                 add(hash[index], circle)
@@ -76,10 +75,10 @@ end
 -- sweep_naive(bucket) for collisions; 
 -- combine results across buckets
 function sweep_hash(hash)
-	local result = {}
+    local result = {}
     for index,bucket in pairs(hash) do
-        local bucketCollisions = sweep_naive(bucket)
-        for collision in all(bucketCollisions) do
+        local bucketcollisions = sweep_naive(bucket)
+        for collision in all(bucketcollisions) do
             add(result,collision)
         end
     end
@@ -92,70 +91,66 @@ end
 -- for any overlaps; combine results across
 -- buckets
 function query_hash(hash, query)
-	local result = {}
-    local qCellList = circle_to_cells(query)
-    for cell in all(qCellList) do
+    local result = {}
+    local qcelllist = circle_to_cells(query)
+    for cell in all(qcelllist) do
         local index = hash_index(cell[1],cell[2])
         local bucket = hash[index]
-        local qItems = query_naive(bucket, query)
-        for q in all(qItems) do
+        local qitems = query_naive(bucket, query)
+        for q in all(qitems) do
             add(result,q)
         end   
     end
     return result
 end
 
--- hash mode: takes a table of buckets mapped to
--- (i, j) pairs of the grid. Then
---
--- non-hash mode: returns all the collision pairs
+-- return circle collisions 
 function sweep(circles)
-	if hash_mode then
-		last_hash = build_hash(circles)
-		return sweep_hash(last_hash)
-	else
-		return sweep_naive(circles)
-	end
+    if hash_mode then
+        last_hash = build_hash(circles)
+        return sweep_hash(last_hash)
+    else
+        return sweep_naive(circles)
+    end
 end
 
--- hash mode:
--- non-hash mode: 
+-- return mouse circle collisions
 function query(q)
-	if hash_mode then
-		return query_hash(last_hash,q)
-	else
-		return query_naive(hearts, q)
-	end
+    if hash_mode then
+        return query_hash(last_hash,q)
+    else
+        return query_naive(hearts, q)
+    end
 end
 
 -- returns a list of (i,j) pairs
 -- representing cells touched by 
 -- the given circle c. 
 function circle_to_cells(c)
-    local pairTable = {}
-    calculate_pair(pairTable,c.x,c.y,-c.r,-c.r) -- top left
-    calculate_pair(pairTable,c.x,c.y,c.r,-c.r)  -- top right
-    calculate_pair(pairTable,c.x,c.y,-c.r,c.r)  -- bot left
-    calculate_pair(pairTable,c.x,c.y,c.r,c.r)   -- bot right
+    local pairtable = {}
+    calculate_pair(pairtable,c.x,c.y,-c.r,-c.r) -- top left
+    calculate_pair(pairtable,c.x,c.y,c.r,-c.r)  -- top right
+    calculate_pair(pairtable,c.x,c.y,-c.r,c.r)  -- bot left
+    calculate_pair(pairtable,c.x,c.y,c.r,c.r)   -- bot right
     --iter = 42
-    local pairList = {}
-    for key,value in pairs(pairTable) do
-        add(pairList,value)
+    local pairlist = {}
+    for key,value in pairs(pairtable) do
+        add(pairlist,value)
         --print("pair: "..value[1] .." "..value[2], 1,iter,7)
         --iter+=7
     end
-    return pairList
+    return pairlist
 end
 
 -- calculates a pair for a point and this
 -- tables method makes it so no duplicates
 -- are added
-function calculate_pair(pairTable,x,y,rx,ry)
+function calculate_pair(pairtable,x,y,rx,ry)
     local px = x + rx
     local py = y + ry
     local pair = pixel_to_cell(px,py)
     if pair ~= nil then
-        pairTable[pair[1]..pair[2]] = pair
+        pairtable[pair[1]..pair[2]] = pair
     end
 end
 
@@ -169,111 +164,108 @@ function pixel_to_cell(x,y)
 end
 
 function _init()
-	poke(0x5f2d, 1) -- enable mouse
+    poke(0x5f2d, 1) -- enable mouse
     last_ms = 0
     hash_mode = false
     cell_size = 16
     grid_size = 128/cell_size
     selected = nil
     hearts = {}
-    heartNum = 50
-    for i = 1,heartNum do
-		add(hearts,{x=rnd(128), y=rnd(128), r=2+rnd(7)*rnd(1)})
-	end
+    heartnum = 50
+    for i = 1,heartnum do
+        add(hearts,{x=rnd(128), y=rnd(128), r=2+rnd(7)*rnd(1)})
+    end
 end
 
 function _update60()
     -- button 'left shift' or 'tab'
-	if btnp(4,1) then
-		hash_mode = not hash_mode
-	end
-	
-    -- CPU used since last flip 
-    -- (1.0 == 100% CPU at 30fps
-	local tick = stat(1)	
-	collisions = sweep(hearts)
-	local tock = stat(1)
-	sweep_time = tock-tick
-	
+    if btnp(4,1) then
+        hash_mode = not hash_mode
+    end
+    
+    -- cpu used since last flip 
+    -- (1.0 == 100% cpu at 30fps
+    local tick = stat(1)    
+    collisions = sweep(hearts)
+    local tock = stat(1)
+    sweep_time = tock-tick
+    
     -- moves hearts out of collision:
-	for pair in all(collisions) do
-		on_hearts_collide(pair[1],pair[2])
-	end
-	
-	local mx = stat(32) --> mouseX
-	local my = stat(33) --> mouseY
-	local ms = stat(34) --> button bitmask (1=prime,2=second,4=mid)
-	
+    for pair in all(collisions) do
+        on_circles_collide(pair[1],pair[2])
+    end
+    
+    local mx = stat(32) --> mousex
+    local my = stat(33) --> mousey
+    local ms = stat(34) --> button bitmask (1=prime,2=second,4=mid)
+    
     -- check for mouse-circle collision:
-	if ms > last_ms then
-		local results = query({x=mx,y=my,r=1})
-		if #results > 0 then
-			selected = results[1]
-		end
-	elseif ms < last_ms then
-		selected = nil
-	end
-	last_ms = ms
-	
+    if ms > last_ms then
+        local results = query({x=mx,y=my,r=1})
+        if #results > 0 then
+            selected = results[1]
+        end
+    elseif ms < last_ms then
+        selected = nil
+    end
+    last_ms = ms
+    
     -- move selected heart circle:
-	if selected then
-		local speed = 0.0625
-		selected.x += speed*(mx-selected.x)
-		selected.y += speed*(my-selected.y)
-	end
+    if selected then
+        local speed = 0.0625
+        selected.x += speed*(mx-selected.x)
+        selected.y += speed*(my-selected.y)
+    end
     
     -- keeps hearts on screen:
-	for h in all(hearts) do
-		h.x = mid(h.r, h.x, 128-h.r)
-		h.y = mid(h.r, h.y, 128-h.r)
-	end	
+    for h in all(hearts) do
+        h.x = mid(h.r, h.x, 128-h.r)
+        h.y = mid(h.r, h.y, 128-h.r)
+    end 
 end
 
 function _draw()
-	cls(14)
+    cls(13)
     -- draw hearts
-	for h in all(hearts) do
-		sspr(16,0,16,16,h.x-h.r,h.y-h.r,h.r*2,h.r*2)
-	end
+    for h in all(hearts) do
+        sspr(16,0,16,16,h.x-h.r,h.y-h.r,h.r*2,h.r*2)
+    end
     
     -- draw box around selected heart:
-	if selected then
-		local s = selected
-		rect(s.x-s.r,s.y-s.r,s.x+s.r-1,s.y+s.r-1,7)
-	end
+    if selected then
+        local s = selected
+        rect(s.x-s.r,s.y-s.r,s.x+s.r-1,s.y+s.r-1,2)
+    end
     
     -- draw mouse cursor:
-	local mx,my = stat(32), stat(33)	
-	local ms = stat(34)==1 and 1 or 17
-	line(mx-4,my,mx+4,my,7)
-	line(mx,my-4,mx,my+4,7)
+    local mx,my = stat(32), stat(33)    
+    local ms = stat(34)==1 and 1 or 17
+    line(mx-4,my,mx+4,my,7)
+    line(mx,my-4,mx,my+4,7)
     
-	-- print info to screen:
-    print("%cpu: "..stat(1),1,1,7)
-	print("#col: "..#collisions,1,7,7)
-	print("mode: "..(hash_mode and "hash" or "naive"),1,14,7)
-    -- debug:
-    --circle_to_cells(hearts[1])
-    --pixel_to_cell(mx,my)
+    -- print info to screen:
+    print("%cpu: "..stat(1),1,1,2)
+    print("#col: "..#collisions,1,7,2)
+    print("mode: "..(hash_mode and "hash" or "naive"),1,14,2)
 end
 
 __gfx__
-00000000000000000000002222000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00000000000000000000222222220000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00700700000000000002222222222000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00077000000000000022222222222200000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00077000000000000222888228882220000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00700700000000000228888888888220000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-000000000000000022288ee888888222000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-000000000000000022288e8888888222000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00000000000000002228888888888222000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00000000000000002222888888882222000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00000000000000000222888888882220000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00000000000000000222288888822220000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00000000000000000022228888222200000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00000000000000000002222882222000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00000000000000000000222222220000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00000000000000000000002222000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00000000000000000000007711000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00000000000000000000777771110000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00700700000000000007777777111000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00077000000000000077777777111100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00077000000000000777117777111110000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00700700000000000777117777111110000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00000000000000007777777777111111000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00000000000000007777777771111111000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00000000000000007777777111111111000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00000000000000007777771111111111000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00000000000000000777771111771110000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00000000000000000777771111771110000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00000000000000000077771111111100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00000000000000000007771111111000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00000000000000000000777111110000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00000000000000000000007711000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
@@ -387,134 +379,134 @@ __gfx__
 00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 __label__
-eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee222eeeeeeeeeeeeeeeeeeeeeeeeeeeee222eeeeeeeeeeeeeeeeeeee22eeeeeeeeeeeeeeeee222eeeeeeeeeeee
-e7e7ee77e777e7e7eeeeeeeee7e7eeeee77ee7282777eeeeeeeeeeeeeeeeeeeeeeeeee28282eeeeeeeeeeeeeeeee222222eeeeeeeeeeeee2222222eeeeeeeeee
-e227e7eee7e7e7e7ee7eeeeee7e7eeeeee7ee7288727eeeeeeeeeeeeeeeeeeeeeeeeee28882eeeeeeeeeeeeeeee22222222eeeeeeeeeee222222222eeeeeeeee
-2e72e7eee777e7e7eeeeeeeee777eeeeee7e27778777eeeeeeeeeeeeeeeeeeeeeeeeee22822eeeeeeeeeeeeeeee28888882eeeeeeeeee22888288822eeeeeeee
-2782e7eee7eee7e7ee7eeeeeeee7eeeeee72e72727e7eeeeeeeeeeeeeeeeeeeeeeeeeee222eeeeeeeeeeeeeeee228e888822eeeeeeeee28888888882eeeeeeee
-e727ee77e7eeee77eeeeeeeeeee7e272e7778777e777eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee2288888822eeeeeeee2288ee8888822eeeeeee
-eeeeeeeeeeeeeeeeeeeeeeeeeee2222222ee22eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee22888882eeeeeeeee2288e88888822eeeeeee
-e7e7ee77ee77e7eeeeeeeeeee7772222222eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee22888822eeeeeeeee2228888888222eeeeeee
-e777e7eee7e7e7eeee7eeeeee7278888882eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee228822eeeeeeeeeee22888888822eeeeeeee
-e7e7e7eee7e7e7eeeeeeeeeee727ee888822eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee222eeee22eeee2222eeeee22288888222eeeeeeee
-e777e7eee7e7e7eeee7eeeeee727e8888822eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee28282eeeeeee222222222eee222888222eeeee22ee
-e727ee77e77ee777eeeeeeeee77788888222eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee28882eeeee222222222222eee2222222eeeee2e82e
-28282eeeeeeeeeeeeeeeeeeeee228888822eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee22822eeee22222222222222eeee222eeeeeee2882e
-28882eeeeeeeeeeeeeeeeee22e222888222eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee222eeeee22222222222222eeeeeeeeeeeeeee22ee
-27772e77e77ee777eeeeee2e877227772777e777e7e7e777eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee2222888228888222eeeeeeeeeeeeeeeeee
-e777e7e7e7e7e7eeee7eee2887e7e727ee7ee7eee7e7e7eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee2288888888888822eeeeeeeeeeeeeeeeee
-e7e7e7e7e7e7e77eeeeeeee227e7e777ee7ee77ee7e7e77eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee222888ee8888888222eeeeeeeeeeeeeeeee
-e7e7e7e7e7e7e7eeee7eeeeee7e7e7e7ee7ee7eee777e7eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee222eeeeeee222888e88888888222eeeeeeeeeeeeeeeee
-e7e7e77ee777e777eeeeeeeee7e7e7e7e777e777ee7ee777eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee2222222eeeee222888888888888222eeeeeeeeeeeeeeeee
-eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee222222222eeee222228888888882222eeeeeeeeeeeeeeeee
-eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee22222222222eeee2222888888888222eeeeeeeeeeeeeeeeee
-eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee2228882888222eee2222288888822222ee222eeeeeeeeeeeee
-eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee2288888888822eee2222288888822222e28282eeeeeeeeeeee
-eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee22eeeeeeeeeeeeeeeeeeeeeeeeeeeee22288ee88888222eee22222888822222ee28882eeeeeeeeeeee
-eeeeeeeeeeeeeeeeeeeeeeee222eeeeeeeeeeeeeeeeee2e82eeeeeeeeeeeeeeeeeeeeeeeeeeee22288e888888222eeee222228822222eee22822eeeeeeeeeeee
-eeeeee22eeeeeeeeeeeeeee2222eeeeeeeeeeeeeeeeee2882eeeeeeeeeeeeeeeeeeeeeeeeeeee222288888882222eeeeee222222222eeeee222eeeeeeeeeeeee
-eeeee2e82eeeeeeeeeeeee28e882eeeeeeeeeeeeeeeeee22eeeeeeeeeeeeeeeeeeeeeeeeeeeeee2228888888222eeeeeeeee2222eeeee22eeeeeeeeeeeeeeeee
-eeeee2882eeeeeeeeeeeee228882eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee2222888882222eeeeeeeeeeeeeeeee2e82eeeeeeeeeeeeeeee
-eeeeee22eeeeeeeeeeeeee228822eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee22228882222eeeeeeeeeeeeeeeeee2882eeeeeeeeeeeeeeee
-eeeeeeeeeeeeeeeeeeeeeeee222eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee222282222eeeeeeeeeeeeeeeeeeee22eeeeeeeeeeeeeeeee
-eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee2222222eeeeeeeeeeee22eeeeeeeeeeeeeeeeeeeeeeeeee
-e222eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee222eeeeeeeeeeeee2e82eeeeeeeeeeeeeeeeeeeeeeeee
-28282eeeeeeeeeeeeeeee2222eeeeee22eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee2882eeeeeeeeeeeeeeeeeeeeeeeee
-28882eeeeeeeeeeeeeee2222222eee2e82eeee222eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee22eeeeeeeeeeeeeeeeeeeeeeeeee
-22822eeeeeeeeeeeeee22222222eee2882eee22222eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
-e222eeeeeeeeeeeeee2222222222eee22eee2888882eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
-eeeeeeeeeeeeeeeee228888888822eeeeeee28e8882eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee222eee
-eeeeeeeeeeeeeeee2228ee88888222eeeeee2288822eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee22222ee
-eeeeeeeeeeeeeeee2228e888888222eeeeeee22822eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee2888882e
-eeeeeeeeeeeeeeee22288888888222eeeeeeee222eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee28e8882e
-eeeeeeeeeeeeeeee22228888888222eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee2288822e
-eeeeeeeeeeeeeeeee222888888822eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee22822ee
-eeeeeeeeeeeeeeeee222888888222eeeeeeeeeeeeeeeeeeeeeeeeeeee222eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee222eee
-eeeeeeeeeeeeeeeeeee22288222eeeee222eeeeeeeeeeeeeeeeeeee2222222eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
-eeeeeeeeeeeeeeeeeeee2222222eeee2222eeeeeeeeeeeeeeeeeee222222222eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
-eeee222eeeeeeeeeeeeee2222eeeee28e882eeeeeeeeeeeeeeeeee288888882eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
-eee28282eeeeeeeeeeeeeeeeeeeeee228882eeeeeeeeeeeeeeeee228ee888822eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee22eeeeeeeeeeeeeeeeeeee
-eee28882eeeeeeeeeeeeeeeeeeeeee228822eeeeeeeeeeeeeeeee228e8888822eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee2e82eeeeeeeeeeeeeeeeeee
-eee22822eeeeeeeeeeeeeeeeeeeeeeee2222222eeeeeeeeeeeeee22288888222eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee2882eeeeeeeeeeeeeeeeeee
-eeee222eeeeeeeeeeeeeeeeeeeeeeeeeee222222eeeeeeeeeeeeee228888822eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee22eeeeeeeeeeeeeeeeeeee
-eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee2888882eeeeeeeeeeeeee222888222eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
-eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee28e88822eeeeeeeeeeeeee2228222eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
-eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee22888822eeeeeeeeeeeeeeee222eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
-eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee2288822eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
-eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee22822eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
-eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee22eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
-eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee222eeeeeeeeeeeeeeeeeee
-eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee28282eeeeeeeeeeeeeeeeee
-ee222eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee22eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee28882ee222eeeeeeeeeeeee
-e28282eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee2e82eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee22822e28282eeeeeeeeeeee
-e28882eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee2882eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee222ee28882eeeeeeeeeeee
-e22822eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee22eeeeeeeeeee22eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee22822eeeeeeeeeeee
-ee222eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee2e82eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee22eeeeeeeeeeeee222eeeeeeeeeeeee
-eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee2882eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee2e82eeeeeeeeeeeeeeeeeeeeeeeeeeee
-eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee22eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee2882eeeeeeeeeeeeeeeeeeeeeeeeeeee
-eeeeeeeeeeeeeeeeeeeeeeee22eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee22eeeeeeeeeeeeeeeeeeeeeeeeeeeee
-eeeeeeeeeeeeeeeeeeeeee222222eeeeeeeeeeeeeeeeee22eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
-eeeeeeeeeeeeeeeeeeeee22222222eeeeeeeeeeeeeeee2e82eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee22eeeeeeeeeeeeeeeeeeeeeeeee
-eeeeeeeeeeeeeeeeeeeee28888882eeeeeeeeeeeeeeee2882eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee222222eeeeeeeeeeeeeeeeeeeeeee
-eeeeeeeeeeeeeeeeeeee228e888822eeeeeeeeeeeeeeee22eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee22222222eeeeeeeeeeeeeeeeeeeeee
-eeeeeeeeeeeeeeeeeeee2288888822eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee28888882eeeeeeeeeeeeeeeeeeeeee
-eeeeeeeeeeeeeeeeeeeee22888882eee222eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee228e888822eeeeeeeeeeeeeeeeeeeee
-eeeeeeeeeeeeeeeeeeeee22888822ee22222eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee2288888822eeeeeeeeeeeeeeeeeeeee
-eeeeeeeeeeeeeeeeeeeeee228822ee2882882eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee22888882eeeeeeeeeeeeeeeeeeeeee
-eeeeeeeeeeeeeeeeeeeeeeee22eee228e88822eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee22888822eeeeeeeeee222eeeeeeeee
-eeeeeeeeee2222eeeeeeeeeeeeeee228888822eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee228822eeeeeeeeee2222eeeeeeeee
-eeeeeeee22222222eeeeeeeeeeeee228888822eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee22eeeeeeeeeee28e882eeeeeeee
-eeeeeee2222222222eeeeeeeeeeeee2288822eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee228882eeeeeeee
-eeeeee222222222222eeeeeeeeeeeee22822eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee228822eeeeeeee
-eeeee22288822888222eeeeeeeeeeeee222eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee22eeeeeeeeeeeeeeeee222eeeeeeeee
-eeeee22888888888822eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee2e82eeeeeeeeeeeeeeeeeeeeeeeeeeee
-eeee22288ee888888222eeeee22eeeeeeeeeeeeeeeeeeeee222eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee2882eeeeeeeeeeeeeeeeeeeeeeeeeeee
-eeee22288e8888888222eeee2e82eeeeeeeeeeeeeeeeeee28282eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee22eeeeeeeeeeeeeeeeeeeeeeeeeeeee
-eeee2228888888888222eeee2882eeeeeeeeeeeeeeeeeee28882eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
-eeee2222888888882222eeeee22eeeeeeeeeeeeeeeeeeee22822eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
-eeeee22288888888222eeeeeeeeeeeeeeeeeeeeeee222eee222eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
-eeeee22228888882222e22eeeeeeeeeeeeeeeeee2222222eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
-eeeeee222288882222e2e82eeeeeeeeeeeeeeee222222222eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
-e22eeee2222882222ee2882eeeeeeeeeeeeeeee288888882eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
-2e82eeee22222222eeee22eeeee22222eeeeee228ee888822eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
-2882eeeeee2222eeeeeeeeeee222222222eeee228e8888822eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
-e22eee222eeeeeeeeeeeeeee22222222222eee22288888222eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
-eeee2222222eeeeeeeeeeeee22222222222eeee228888822eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
-eee222222222eeeeeeeeee222222222222222ee222888222eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
-ee22222222222eeeeeeee22228882228882222ee2228222eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
-e2228882888222eeeeeee22288888888888222eeee222eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
-e2288888888822eeeeee222288ee88888882222eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
-22288ee88888222eeeee222288e888888882222eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
-22288e888888222eeeee222288e888888882722eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
-222288888882222eeeee2222888888888882722eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
-e2228888888222eeeeee2222288888888822722eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee22222eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
-e2222888882222eeeeeee22228888888882272eeeeeeee22eeeeeeeeeeeeeeeeeeeeeeeeee222222222eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
-ee22228882222eeeeeeee22222888888777777777eee222222eeeeeeeeeeeeeeeeeeeeeee22222222222eeeeeeeeeeeeeeeeeeeeeeeeeee222eeeeeeeeeeeeee
-eee222282222eeeeeeeeee222228888822227ee22ee22222222eeeeeeeeeeeeeeeeeeeee2222222222222eeeeeeeeeeeeeeeeeeeeeeee2222222eeeeeeeeeeee
-eeee2222222eeeeeeeeeeeee22228882222e7e2e82e28888882eeeeeeeeeeeeeeeeeeee222888222888222eeeeeeeeeeeeeeeeeeeeee222222222eeeeeeeeeee
-eeeeee222eeeeeeeeeeeeeee22228882222e7e2882228e888822eeeeeeeeeeeeeeeeeee228888888888822eeeeeeeeeeeeeeeeeeeee22888288822eeeeeeeeee
-eeeeeeeeeeeeeeeeeeeeeeeee222222222ee7ee22e2288888822ee222eeeeeeeeeeeee22288ee8888888222eeeeeeeeeeeeeeeeeeee28888888882eeeeeeeeee
-eeeeeeeeeeeeeeeeeeeeeeeeeee22222eeeeeeeeeee22888882ee22222eeeeeeeeeeee22288e88888888222eeeeeeeeeeeeeeeeeee2288ee8888822eeeeeeeee
-eeeeeeeeeee22222eeeeeeeeeeeeeeee222eeeeeeee22888822e2888882eeeeeeeeeee22288e88888888222eeeeeeeeeeeeeeeeeee2288e88888822eeeeeeeee
-eeeeeeeee222222222eeeeeeeeeeee2222222eeeeeee228822ee28e8882eeeeeeeeeee22288888888888222eeeeeeeeeeeeeeeeeee2228888888222eeeeeeeee
-eeeeeeee22222222222eeeeeeeeee222222222eeeeeeee22eeee2288822eeeeeeeeeee22228888888882222eeeeeeeeeeeeeeeeeeee22888888822eeeeeeeeee
-eeeeeeee22222222222eeeeeeeee22888288822eeeeeeeeeeeeee22822eeeeeeeeeeeee222888888888222eeeeeeeeeeeeeeeeeeeee22288888222eeeeeeeeee
-eeeeee222222222222222eeeeeee28888888882eeeeeeeeeeeeeee222eeeeeeeeeeeeee222288888882222eeeeeeeeeeeeeeeeeeeeee222888222eeeeeeeeeee
-eeeee22228882228882222eeeee2288ee8888822eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee2222888882222e22eeeeeeeeeeeeeeeeeeeee2222222eeeeeeeeeeee
-eeeee22288888888888222eeeee2288e88888822eeee22eeeeeee222eeeeeeeeeeeeeeeee22228882222e2e82eeeeeeeeeeeeeeeeeeeeee222eeeee222eeeeee
-eeee222288ee88888882222eeee2228888888222eee2e82eeeee2222eeeeeeeeeeeeeeeeee222222222ee2882eeeeeeeeeeeeeeeeeeeeeeeeeeee2222222eeee
-eeee222288e888888882222eeeee22888888822eeee2882eeee28e882eeeeeeeeeeeeeeeeeee22222eeeee22eeeeeeeeeeeeeeeeeeeeeeeeeeee222222222eee
-eeee222288e888888882222eeeee22288888222eeeee22eeeee228882eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee22888288822ee
-eeee2222888888888882222eeeeee222888222eeeeeeeeeeeee228822eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee28888888882ee
-eeee2222288888888822222eeeeeee2222222eeeeeeeeeeeeeeee222eeeeeee222eeeeeeeeeeeeeee22eeeeeeeeeeeeeeeeeeeeeeeeeeeeeee2288ee8888822e
-eeeee22228888888882222eeeeeeeeee222eeeeeeeeeeeeeeeeeeeeeeeeeee2222eeeeeeeeeeeeee2e82eeeeeeeeeeeeeeeeeeeeeeeeeeeeee2288e88888822e
-eeeee22222888888822222eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee28e882eeeeeeeeeeeee2882eeeeeeeeeeeeeeeeeeeeeeeeeeeeee2228888888222e
-eeeeee222228888822222e22eeee222eeeeeeeeeeeeeeeeeeeeeeeeeeeeee228882eeeeeeeeeeeeee22eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee22888888822ee
-eeeeeeee22228882222ee2e82ee28282eeeeeeeeeeeeeeeeeeeeeeeeeeeee228822eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee22288888222ee
-eeeeeeee22228882222ee2882ee28882eeeeeeeeeeeeeeeeeeeeeeeeeeeeeee222eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee222888222eee
-eeeeeeeee222222222eeee22eee22822eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee2222222eeee
-eeeeeeeeeee22222eeeeeeeeeeee222eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee222eeeeee
-eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
+dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd771ddddddddddddddddddddddddddddd
+d2d2dd22d222d2d2ddddddddd222ddddd222d222d222d2d2ddddddddddddddddddddddddddddddddddddddddddddddd71711dddddddddddddddddddddddddddd
+ddd2d2ddd2d2d2d2dd2dddddd2d2ddddddd2ddd2ddd2d2d2ddddddddd71ddddddddddddddddddddddddddd71ddddddd77711dddddddddddddddddddddddddddd
+dd2dd2ddd222d2d2ddddddddd2d2ddddddd2ddd2ddd2d222dddddddd7711ddddddddddddddddddddddddd7711d771dd77171dddddddddddddddddddddddddddd
+d2ddd2ddd2ddd2d2dd2dddddd2d2ddddddd2ddd2ddd2ddd2dddddddd7171ddddddddddddddddddddddddd717171711dd711ddddddddddddddddddddddddddddd
+d2d2dd22d2dddd22ddddddddd222dd2dddd2ddd2ddd2ddd2ddddddddd71ddddddddddddddddddddddddddd71d77711dddddddddddddddddddddddddddddddddd
+ddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd77171dd71dddddddddddddddddddddddddddddd
+d2d2dd22dd22d2ddddddddddd222dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd711dd7711ddddddddddddddddddddddddddddd
+d222d2ddd2d2d2dddd2dddddd2d2ddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd7171ddddddddddddddddddddddddddddd
+d2d2d2ddd2d2d2ddddddddddd2d2dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd71dddddddddddddddddddddddddddddd
+d222d2ddd2d2d2dddd2dddddd2d2dddddddddddddddddddddddddddddddddddddddddddd711ddddddddddddddddd771ddddddddddddddddddddddddddddddddd
+d2d2dd22d22dd222ddddddddd222ddddddddddddddddd71dddddddddddddddddddddddd7771dddddddddddddddd71711dddddddddddddddddddddddddddddddd
+dddddddddddddddddddddddddddddddddddddddddddd7711dddddddddddddddddddddd777711ddddddddddddddd77711dddddddddddddddddddddddddddddddd
+dddddddddddddddddddddddddddddddddddddddddddd7171dddddddddddddddddddddd771111ddddddddddddddd77171ddddddddddddddddd77711dddddddddd
+d222dd22d22dd222ddddddddd2d2d222dd22d2d2ddddd71ddddddddddddddddddddddd771171dddddddddddddddd711dddddddddddddddd777777111dddddddd
+d222d2d2d2d2d2dddd2dddddd2d2d2d2d2ddd2d2dddddddddddddddddddddddddddddddd711ddddddddddddddddddddddddddddddddddd77777777111ddddddd
+d2d2d2d2d2d2d22dddddddddd222d222d222d222ddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd7777777771111dddddd
+d2d2d2d2d2d2d2dddd2dddddd2d2d2d2ddd2d2d2dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd777117777711111ddddd
+d2d2d22dd222d222ddddddddd2d2d2d2d22dd2d2ddddddddddddddddddddddddddddddddddddddddddddddddddddd771dddddddddddd777117777711111ddddd
+dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd77771dddddddddd77777777777111111dddd
+ddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd7177711ddddddddd77777777771111111dddd
+dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd711ddddddddddddddddd777777111dddddddd77777777771111111dddd
+dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd777711dddddddddddddddd777771111dddddddd77777771111111111dddd
+dddddddd711dddddddddddddddddddddddddddddddddddddddddddddddddddddddd777777111dddddddddddddd777111111dddddddd77777711111111111dddd
+ddddddd7771ddddddddddddddddddddddddddddddddddddddddddddddddddddddd7711777111ddddddddddddddd7711171dddddddddd777771111177111ddddd
+dddddd777711dddddddddddddddddddddddddddddddddddddddddddddddddddddd7711777111dddddddddddddddd71111ddddddddddd777771111177111ddddd
+dddddd771111dddddddddddddddd771dddddddddddddddddddddddddddddddddd777777711111dddddddddddddddd771ddddddddddddd7777111111111dddddd
+dddddd771171ddddddddddddddd71711ddddddddddddddddddddddddddddddddd777771111111ddddddddddddddddddddddddddddddddd77711111111ddddddd
+dddddddd711dddddddddddddddd77711ddddddddddddddddddddddddddddddddd777771111111dddddddddddddddddddddddddddddddddd777111111d771dddd
+ddddddddddddddddddddddddddd77171ddddddddddddddd771dddddddddddddddd7777111711ddddddddddd71dddddddddddddddddddddddd77711dd71711ddd
+dddddddddddddddddddddddddddd711dddddddddddddd7777111ddddddddddddddd777111111ddddddddd777711ddddddddddddddddddddddddddddd77711ddd
+dddddddddddddddddddddddddddddddddddddddddddd777777111dddddddddddddd77711111ddddddddd77777111ddddddddddddddd71ddddddddddd77171ddd
+ddddddddddddddddddddddddddddddddddddddddddd77777771111dddddddddddddddd711ddddddddddd77177111dddddddddddddd7711ddddddddddd711dddd
+dddddddddddddddddddddddddddddddddddddddddd7771177711111dddddddddddddddddddddddddddd7777771111ddddddddddddd7171dddddddddddddddddd
+dddddddddddddddddddddddddddddddddddddddddd7771177711111dddddddddddddddddddddddddddd7777111111dddddddddddddd71ddddddddddddddddddd
+ddddddddddddddddddddddddddddddddddddddddd777777777111111dddddddddddddddddddddddddddd77711771dddddddddddddddddddddddddddddddddddd
+ddddddddddddddddddddddddddddddddddddddddd777777771111111dddddddddddddddddddddddddddd77711771dddddddddddddddddddddddddddddddddddd
+ddddddddddddddddddddddddddddddddddddddddd777777111111111ddddddddddddddddddddddddddddd771111dd771dddddddddddddddddddddddddddddddd
+dddddddddddddddddddddddddddddddddddddddddd7777711177111ddddddd771dddddddddddddddddddddd71ddd77711ddddddddddddddddddddddddddddddd
+dddddddddddddddddddddddddddddddddddddddddd7777711177111dddddd77711ddddddddddddddddddddddddd7717111dddddddddddddddddddddddddddddd
+ddddddddd771ddddddddddddddddddddddddddddddd77771111111dddddd7717111dddddddddddddddddddddddd7777111dddddddddddddddddddddddddddddd
+dddddddd77771ddddddddddddddddddddddddddddddd777111111ddddddd7777111dddddddddddddddddddddddd7771711dddddddddddddddddddddddddddddd
+ddddddd7177711ddddddddddddddddddddddddddddddd7771111dddddddd7771711ddddddddddddddddddddddddd77111ddddddddddddddddddddddddddddddd
+dddddd777777111dddddddddddddddddddddddddddddddd771ddddddddddd77111ddddddddddddddddddddddddddd711dddddddddddddddddddddddddddddddd
+dddddd777771111dddddddddddddddddddddddddddddddddddddd771dddddd711ddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
+dddddd777111111ddddddddddddddddddddddddddddddddddddd77711ddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
+ddddddd7711171ddddddddddddddddddddddddddddddddddddd7717111dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
+ddd771dd71111dddddddddddddddddddddddddddddddddddddd7777111dddddddddddddd711ddddddddddddddddddddddddddddddddddddddddddddddddddddd
+dd77771dd771ddddddddddddddddddddddddddddddddddddddd7771711dddddddddddd777711dddddddddddddddddddddddddddddddddddddddddddddddddddd
+d7177711dddddddddddddddddddddddddddddddddddddddddddd77111dddddddddddd777777111dddddddddddddddddddddddddddd771ddddddddddddddddddd
+777777111dddddddddddddddddddddddddddddddddddddddddddd711dddddddddddd7711777111ddddddddddddddddddddddddddd71711dddddddddddddddddd
+777771111ddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd7711777111ddddddddddddddddddddddddddd77711dddddddddddddddddd
+777111111dddddddddddddddddddddddddddddddddddddddddddddddddddddddddd777777711111dddddddddddddddddddddddddd77171dddddddddddddddddd
+d7711171ddddddddddddddddddddddddddddd7711dddddddddddddddddddddddddd777771111111ddddddddddddddddddddddddddd711ddddddddddddddddddd
+dd71111ddddddddddddddddddddddddddddd777711ddddddddddddddddddddddddd777771111111ddddddddddddddddddddddddddddddddddddddddddddddddd
+ddd771ddddddddddddddddddddddddddddd7717711dddddddddddddddddddddddddd7777111711dddddddddddddddddddddddddddddddddddddddddddddddddd
+ddddddddddddddddddddddddddddddddddd77771111dddddddddddddddddddddddddd777111111dddddddddddddddddddddddddddddddddddddddddddddddddd
+ddddddddddddddddddddddddddddddddddd77711111dddddddddddddddddddddddddd77711111ddddddddddddddddddddddddddddddddddddddddddddddddddd
+ddddddddddddddddddddddddddddddddddd7771171dddddddddddddddddddddddddddddd711ddddddddddddddddddddddddddddddddddddddddddddddddddddd
+dddddddddddddddddddddddddddddddddddd77111ddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
+dddddddddddddddddddddddddddddddddddddd71dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd771ddddddddddddddd
+dddddddddddddddddddddddddddd7711dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd7777111ddddddddddddd
+dddddddddddddddddddddddddd77777111ddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd777777111dddddddddddd
+ddddddddddddddddddddddddd7777777111ddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd77117771111ddddddddddd
+dddddddddddddddddddddddd777777771111dddddddddddddddddddddddddddddddddddd771ddddddddddddddddddddddddddddddd77117771111ddddddddddd
+ddddddddddddddddddddddd77711777711111dddddddddddddddddddddddddddddddddd77711ddddddddddddddddddddddddddddd7777777711111dddddddddd
+ddddddddddddddddddddddd77711777711111ddddddddddddddddddddddddddddddddd7717111dddddddddddddddddddddddddddd7777777111111dddddddddd
+dddddddddddddddddddddd7777777777111111dddddddddddddddddddddddddddddddd7777111dddddddddddddddddddddddddddd7777711111111dddddddddd
+ddddddddddd771dddddddd7777777771111111dddddddddddddddddddddddddddddddd7771711ddddddddddddddddddddddddddddd77771117711ddddddddddd
+dddddddddd71711ddddddd7777777111111111ddddddddddddddddddddddddddddddddd77111dddddddddddddddddddddddddddddd77771117711ddddddddddd
+dddddddddd77711ddddddd7777771111111111dddddddddddddd71dddddddddddddddddd711dddddddddddddddddddddddddddddddd777111111dddddddddddd
+dddddddddd77171dddddddd77777111177111dddddddddddddd7711ddddddddddddddddddddddddddddddddddddddddddddddddddddd7771111ddddddddddddd
+ddddddddddd711ddddd711d77777111177111dddddddddddddd7171ddddddddddddddddddddddddddddddddddddddddddddddddddddddd771ddddddddddddddd
+dddddddddddddddddd7771dd777711111111dddddddddddddddd71ddddddd771dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
+ddddddddddddddddd777711dd7771111111dddddddddddddddddddddddd7777711dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
+ddddddddddddddddd771111ddd77711111dddddddddddddddddddddddd777777111ddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
+ddddddddddddddddd771171ddddd7711dddddddddddddddddddddddddd771777111ddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
+ddddd771ddddddddddd711ddddddddddddddddddddddddddddddddddd77777771111dddddddddddddddddddddd7711dddddddddddddddddddddddddddddddddd
+ddd7777711ddddddddddddddddddddddddddddddddddddddddddddddd77777711111dddddddddddddddddddd77777111ddddddddddd7dddddddddddddddddddd
+dd777777111dddddddddddddddddddddddddddddddddddddddddddddd77771111111ddddddddddddddddddd7777777111dddddddddd7dddddddddddddddddddd
+dd771777111ddddddddddddddddddddddddddddddddddddddddddddddd777111711ddddddddddddddddddd777777771111ddddddddd7dddddddddddddddddddd
+d77777771111dddddddddddddddddddddddddddddddddddddddddddddd777111111dddddddddddddddddd77711777711111dddddddd7dddddddddddddddddddd
+d77777711111ddddddddddddddddddddddddddddddddddddddddddddddd7711111ddddddddddddddddddd77711777711111dddd777777777dddddddddddddddd
+d77771111111ddddddddddddddddddddddddddddddddddddddddddddddddd771dddddddddddddddddddd7777777777111111ddddddd7dddddddddddddddddddd
+dd777111711ddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd7777777771111111ddddddd7dddddddddddddddddddd
+dd777111111dddddddddddddddddddddddddddddddd711dddddddddddddddddddddddddddddddddddddd7777777111111111ddddddd7dddddddddddddddddddd
+ddd7711111dddddddddddddddddddddddddddddddd7771dddddddddddddddddddddddddddddddddddddd7777771111111111ddddddd7dddddddddddddddddddd
+ddddd771ddddddddddddddddddddddddddddddddd777711dddddddddddddddddddddddddddddddddddddd77777111177111ddddddddddddddddddddddddddddd
+ddddddddddddddddddddddddddddddddddddddddd771111dddddddddddddddddddddddddddddddddddddd77777111177111ddddddddddddddddddddddddddddd
+ddddddddddddddddddddddddddddddddddddddddd771171ddddddddddddddddddddddddddddddddddddddd777711111111dddddddddddddddddddddddddddddd
+ddddddddddddddddddddddddddddddddddddddddddd711ddddddddddddddddddddddddddddddddddddddddd7771111111ddddddddddddddddddddddddddddddd
+ddddddddddddddddddddddddd771dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd77711111dddddddddddddddddddddddddddddddd
+ddddddddddddddddddddddd7777711dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd7711dddddddddddddddddddddddddddddddddd
+dddddddddddddddddddddd777777111dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd71ddddddddd
+dddddddddddddddddddddd771777111dddddddddddddddd771dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd7711dddddddd
+d771ddddddddddddddddd77777771111dddddddddddddd77711ddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd7171dddddddd
+71711dddddddddddddddd77777711111ddddddddddddd7717111ddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd71ddddddddd
+77711dddddddddddddddd77771111111ddddddddddddd7777111dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
+77171ddddddddddddddddd777111711dddddddddddddd7771711dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
+d711dddddddddddddddddd777111111ddddddddddddddd77111ddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
+ddddddddddddddddddddddd7711111ddddddddddddddddd711ddddddddd771dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
+ddddddddddddddddddddddddd771dddddddddddddddddddddddddddddd71711ddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
+dddddddddddddddddddddddddddddddddddddddddddddddddddddddddd77711ddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
+dddddddddddddddddddddddddddddddddddddddddddddddddddddddddd77171ddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
+ddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd711dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
+dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
+dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd71dddddddddddddddddddddddddd
+dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd777711dddddddddddddddddddddddd
+ddddddddd771ddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd77777111ddddddddddddddddddddddd
+dddddddd71711dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd77177111ddddddddddddddddddddddd
+dddddddd77711ddddddddddddddddddddddddddddddddd771ddddddddddddddddddddddddddddddddddddddddddddddd7777771111dddddddddddddddddddddd
+dddddddd77171dddddddddddddddddddddddddddddddd77711dddddddddddddddddddddddddddddddddddddddddddddd7777111111dddddddddddddddddddddd
+ddddddddd711dddddddddddddddddddddddddddddddd7717111dddddddddddddddddddddddddddddddddddddddddddddd77711771dddd71ddddddddddddddddd
+dddddddddddddddddddddddddddddddddddddddddddd7777111dddddddddddddddddddddddddddddddddddddddddddddd77711771ddd7711dddddddddddddddd
+dddddddddddddddddddddddddddddddddddddddddddd7771711ddddddddddddddddddddddddddddddddddddddddddddddd771111dddd7171dddddddddddddddd
+ddddddd771ddddddddddddddddddddddddddddddddddd77111dddddddddddddddddddddddddddddddddddddddddddddddddd71ddddddd71ddddddddddddddddd
+dddddd77711ddddddddddddddddddddddddddddddddddd711ddddddddddddddddddddddddddddddd71dddddddddddddddddddddddddddddddddddddddddddddd
+ddddd7717111ddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd7711ddddddddddddddddddddddddddddddd71dddddddddddd
+ddddd7777111ddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd7171dddddddddddddddddddddddddddddd7711ddddddddddd
+ddddd7771711dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd71dddddddddddddddddddd7711ddddddd7171ddddddddddd
+dddddd77111dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd777711ddddddd71dddddddddddd
+ddddddd711dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd7717711ddddddddddddddddddddd
+ddddddddddddddddddddddddddddddddddddddd771dddddddddddddddddddddddddddddddddddddddddddddddddddddddddd77771111dddddddddddddddddddd
+dddddddddddddddddddddddddddddddddddddd71711ddddddddddddddddddddd71dddddddddddddddddddddddddddddddddd77711111dddddddddddddddddddd
+dddddddddddddddddddddddddddddddddddddd77711dddddddddddddddddddd7711ddddddddddddddddddddddddddddddddd7771171ddddddddddddddddddddd
+dddddddddddddddddddddddddddddddddddddd77171dddddddddddddddddddd7171dddddddddddddddddddddddddddddddddd77111dddddddddddddddddddddd
+ddddddddddddddddddddddddddddddddddddddd711dddddddddddddddddddddd71ddddddddddddddddddddddddddddddddddddd71ddddddddddddddddddddddd
+dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
 
 __gff__
 0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
