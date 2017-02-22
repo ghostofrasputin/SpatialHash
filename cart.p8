@@ -83,7 +83,7 @@ function sweep_hash(hash)
             add(result,collision)
         end
     end
-	return result
+    return result
 end
 
 -- for every cell which the q circle 
@@ -102,7 +102,7 @@ function query_hash(hash, query)
             add(result,q)
         end   
     end
-	return result
+    return result
 end
 
 -- hash mode: takes a table of buckets mapped to
@@ -163,43 +163,9 @@ end
 -- representing which cell pixel 
 -- (x,y) falls into
 function pixel_to_cell(x,y)
-    for i=1,grid_size do
-        for j=1,grid_size do
-            local x_min = grid[i][j][1]
-            local y_min = grid[i][j][2]
-            local x_max = grid[i][j][3]
-            local y_max = grid[i][j][4]
-            if x>x_min and x<x_max and y>y_min and y<y_max then
-               --print("i: " ..i,1,21,7)
-               --print("j: " ..j, 1,28,7)
-               return {i,j}
-            end
-        end
-    end
-end
-
--- create a list of grid tiles
--- based on the cell size 
--- retuns list of min and max intervals
-function generateGrid()
-    local grid = {}
-    local x_min,y_min = 0,0
-    local x_max,y_max = cell_size,cell_size
-    
-    for i=1,grid_size do
-        grid[i] = {}
-        for j=1,grid_size do
-            grid[i][j] = {x_min,y_min,x_max,y_max}
-            y_min += cell_size
-            y_max += cell_size
-        end
-        y_min = 0
-        y_max = cell_size
-        x_min += cell_size
-        x_max += cell_size
-    end
-    
-    return grid
+    local i = flr(x/cell_size) 
+    local j = flr(y/cell_size)
+    return {i,j}
 end
 
 function _init()
@@ -211,9 +177,8 @@ function _init()
     selected = nil
     hearts = {}
     heartNum = 50
-    grid = generateGrid()
     for i = 1,heartNum do
-		add(hearts,{x=rnd(128), y=rnd(128), r=2+rnd(8)*rnd(1)})
+		add(hearts,{x=rnd(128), y=rnd(128), r=2+rnd(7)*rnd(1)})
 	end
 end
 
